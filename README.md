@@ -10,8 +10,8 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
 - Docker Compose for local Postgres
 - Human approval hook for demonstration of pause/resume
 - Demo username/password authentication with scrypt password hashes and signed, HttpOnly session cookies
-- An admin account can be seeded from `ADMIN_USERNAME` and `ADMIN_PASSWORD` in `.env.local`
-- Authenticated support ticket creation with role-aware queues and admin controls
+- A tech account can be seeded from `TECH_USERNAME` and `TECH_PASSWORD` in `.env.local`
+- Authenticated support ticket creation with requester and tech queues
 
 ## Quick start
 
@@ -27,7 +27,7 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
    cp .env.example .env.local
    ```
 
-   Set `ADMIN_USERNAME`/`ADMIN_PASSWORD` and `TECH_USERNAME`/`TECH_PASSWORD` in `.env.local` for the local operator accounts. They are created automatically the first time auth storage is read and are never exposed through public registration. If an existing account uses one of those usernames, its role is synchronized to the configured role.
+   Set `TECH_USERNAME`/`TECH_PASSWORD` in `.env.local` for the local tech account. It is created automatically the first time auth storage is read and is never exposed through public registration. If an existing account uses that username, its role is synchronized to tech.
 
 3. Bootstrap the Workflow SDK tables:
 
@@ -73,16 +73,15 @@ flowchart TD
     H --> I[Closed]
 
     J[Requester or tech creates ticket] -. starts .-> A
-    K[Tech or admin resumes ticketApprovalHook] -. approval .-> F
+    K[Tech resumes ticketApprovalHook] -. approval .-> F
 ```
 
 ## Roles and lifecycle
 
-Support accounts can be created with one of three roles:
+Support accounts can be created with one of two roles:
 
 - `requester`: creates tickets and views only their own issue history
 - `tech`: sees the operator queue, assigns work, and resolves tickets
-- `admin`: has the same queue access as tech plus administrative override controls and approval authority
 
 Ticket lifecycle states are:
 
@@ -102,9 +101,9 @@ The demo intentionally uses file-backed persistence under `.durableops/` so it c
 - `auth.json` stores users with `scrypt` password hashes, opaque session cookies, and role metadata
 - `tickets.json` stores tickets, lifecycle state, queue ownership, and workflow run IDs
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me` manage sessions
-- `GET /api/tickets` returns the signed-in user’s tickets for requesters or the relevant queue for tech/admin roles
+- `GET /api/tickets` returns the signed-in user’s tickets for requesters or the full queue for tech
 - `POST /api/tickets` creates a ticket and starts `processSupportTicket`
-- `PATCH /api/tickets/[id]` lets tech/admin update queue state and assignee metadata
+- `PATCH /api/tickets/[id]` lets tech update queue state and assignee metadata
 - `POST /api/tickets/approve` resumes the durable approval hook for sensitive or high-impact requests
 
 This persistence is suitable for local demos only. Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
@@ -112,7 +111,7 @@ This persistence is suitable for local demos only. Use a managed database, a sec
 ## Demo features
 
 - Durable onboarding workflow with a human approval gate
-- Durable support ticket lifecycle with requesters, tech, and admin roles
+- Durable support ticket lifecycle with requesters and tech roles
 - Tech queue and operator dashboard with role-aware actions
 - Approval hooks for sensitive and high-impact ticket categories
 - Run status + history API at `/api/runs/[runId]` and `/api/runs`
