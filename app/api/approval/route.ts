@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { buildDemoTimeline, upsertDemoRun } from "@/lib/demo-run-store";
 import { customerApprovalHook } from "@/workflows/customer-onboarding";
 
 const approvalSchema = z.object({
@@ -18,10 +19,32 @@ export async function POST(request: Request) {
       reason: body.reason,
     });
 
+    const status = body.approved ? "approved" : "rejected";
+    const completedAt = new Date().toISOString();
+
+    await upsertDemoRun(body.runId, {
+      status,
+      phase: body.approved ? "approved" : "rejected",
+      decision: body.approved ? "approved" : "rejected",
+      approvalState: body.approved ? "approved" : "rejected",
+      reviewer: body.reviewer,
+      reason: body.reason,
+      completedAt,
+      summary: body.approved
+        ? `Approved by ${body.reviewer}. Customer onboarding is finalized.`
+        : `Rejected by ${body.reviewer}. Customer onboarding has been terminated.`,
+      timeline: buildDemoTimeline({
+        status,
+        approvalState: body.approved ? "approved" : "rejected",
+        reviewer: body.reviewer,
+        reason: body.reason,
+      }),
+    });
+
     return Response.json({
       ok: true,
       runId: body.runId,
-      decision: body.approved ? "approved" : "rejected",
+      decision: status,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not resume approval hook";

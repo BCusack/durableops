@@ -50,9 +50,19 @@ This demo uses an onboarding workflow that:
 
 This is designed to demonstrate the value of durable orchestration over a traditional request/response app.
 
+## Demo features
+
+- Durable onboarding workflow with a human approval gate
+- Run status + history API at `/api/runs/[runId]` and `/api/runs`
+- File-backed demo history store for timeline snapshots and recent-run views
+- Stronger approval UX with reviewer notes, status cards, and a run timeline
+- Postgres bootstrap script that sets Docker config and waits for `pg_isready`
+
 ## Useful commands
 
 ```bash
 npx workflow web
 npx workflow inspect runs
+npm run db:up
+npm run db:bootstrap
 ```

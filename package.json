@@ -7,8 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:up": "docker compose -f infra/postgres/docker-compose.yml up -d",
-    "db:bootstrap": "WORKFLOW_POSTGRES_URL=${WORKFLOW_POSTGRES_URL:-postgresql://durableops:durableops@localhost:5432/durableops} npx --package=@workflow/world-postgres@5.0.0-beta.38 bootstrap"
+    "db:up": "node ./scripts/local-db.mjs up",
+    "db:bootstrap": "node ./scripts/local-db.mjs bootstrap",
+    "db:reset": "node ./scripts/local-db.mjs up-and-bootstrap",
+    "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && next dev"
   },
   "dependencies": {
     "@workflow/world-postgres": "5.0.0-beta.38",
