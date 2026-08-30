@@ -1,24 +1,55 @@
 #!/usr/bin/env node
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+
+async function loadEnvFile(filePath, { override = false } = {}) {
+  let contents;
+  try {
+    contents = await readFile(filePath, "utf8");
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return;
+    }
+    throw error;
+  }
+
+  for (const line of contents.split(/\r?\n/)) {
+    const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
+    if (!match) {
+      continue;
+    }
+
+    let value = match[2];
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (override || process.env[match[1]] === undefined) {
+      process.env[match[1]] = value;
+    }
+  }
+}
+
+await loadEnvFile(path.join(process.cwd(), ".env"));
+await loadEnvFile(path.join(process.cwd(), ".env.local"), { override: true });
 
 const command = process.argv[2] ?? "up";
 const rootDir = process.cwd();
 const homeDir = process.env.HOME || os.homedir();
 const dockerConfigDir = path.join(rootDir, ".docker-config");
-const defaultDockerConfigDir = path.join(homeDir, ".docker");
 const composeFile = path.join(rootDir, "infra", "postgres", "docker-compose.yml");
 const postgresUser = process.env.POSTGRES_USER ?? "durableops";
 const postgresDb = process.env.POSTGRES_DB ?? "durableops";
-const defaultUrl = `postgresql://${postgresUser}:${process.env.POSTGRES_PASSWORD ?? "durableops"}@localhost:5432/${postgresDb}`;
+const defaultUrl = `postgresql://${postgresUser}:${process.env.POSTGRES_PASSWORD ?? "durableops"}@localhost:15432/${postgresDb}`;
 const workflowUrl = process.env.WORKFLOW_POSTGRES_URL ?? defaultUrl;
-const dockerEnv = { ...process.env, DOCKER_CONFIG: defaultDockerConfigDir, HOME: homeDir };
+const dockerEnv = { ...process.env, DOCKER_CONFIG: dockerConfigDir, HOME: homeDir };
 
-await mkdir(defaultDockerConfigDir, { recursive: true });
-await writeFile(path.join(defaultDockerConfigDir, "config.json"), JSON.stringify({ auths: {} }, null, 2), "utf8");
 await mkdir(dockerConfigDir, { recursive: true });
 await writeFile(path.join(dockerConfigDir, "config.json"), JSON.stringify({ auths: {} }, null, 2), "utf8");
 
@@ -32,7 +63,15 @@ function run(commandName, args, options = {}) {
     throw result.error;
   }
 
+  if (result.signal) {
+    const signal = result.signal;
+    throw new Error(`${commandName} ${args.join(" ")} terminated by ${signal}.`);
+  }
+
   if (result.status !== 0) {
+    if (options.stdio === "pipe" && result.stderr?.length) {
+      process.stderr.write(result.stderr);
+    }
     process.exit(result.status ?? 1);
   }
 
@@ -67,6 +106,21 @@ async function ensureDockerAvailable() {
   if (result.error || result.status !== 0) {
     console.error("Docker is required to start the local DurableOps database.");
     console.error("Install Docker Desktop or Docker Engine and ensure `docker` is on your PATH.");
+    process.exit(1);
+  }
+
+  const daemon = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
+    stdio: "pipe",
+    env: dockerEnv,
+  });
+
+  if (daemon.error || daemon.signal || daemon.status !== 0) {
+    const details = daemon.stderr?.toString().trim();
+    console.error("Docker is installed, but the Docker daemon is not available.");
+    console.error("Start Docker Desktop or the Docker Engine, then run `npm run start:demo` again.");
+    if (details) {
+      console.error(`Docker reported: ${details}`);
+    }
     process.exit(1);
   }
 }

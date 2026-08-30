@@ -4,7 +4,7 @@ import { z } from "zod";
 export const onboardingSchema = z.object({
   customerId: z.string().min(3),
   company: z.string().min(2),
-  email: z.string().email(),
+  email: z.email(),
   region: z.string().min(2),
   owner: z.string().min(2).default("ops-admin"),
 });
