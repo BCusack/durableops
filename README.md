@@ -60,6 +60,22 @@ This demo includes two durable workflows:
 
 The support ticket workflow is explicitly role-aware. Sensitive and high-impact work pauses for an approval hook before technical work begins, while routine requests continue directly into the tech queue.
 
+```mermaid
+flowchart TD
+    A[Ticket submitted] --> B[Triage]
+    B --> C{Approval required?}
+    C -- No --> D[In progress]
+    C -- Yes --> E[Awaiting approval]
+    E --> F{Decision}
+    F -- Rejected --> G[Closed]
+    F -- Approved --> D
+    D --> H[Resolved]
+    H --> I[Closed]
+
+    J[Requester or tech creates ticket] -. starts .-> A
+    K[Tech or admin resumes ticketApprovalHook] -. approval .-> F
+```
+
 ## Roles and lifecycle
 
 Support accounts can be created with one of three roles:
