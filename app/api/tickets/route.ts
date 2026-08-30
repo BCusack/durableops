@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { start } from "workflow/api";
 import { z } from "zod";
 import { getUserFromSession, sessionCookieName } from "@/lib/auth-store";
-import { createTicket, listAllTickets, listTicketsForUser, listTicketQueue } from "@/lib/ticket-store";
+import { createTicket, listAllTickets, listTicketsForUser } from "@/lib/ticket-store";
 import { processSupportTicket } from "@/workflows/ticket-processing";
 
 const schema = z.object({
@@ -28,7 +28,7 @@ export async function GET() {
     ok: true,
     role: user.role,
     tickets,
-    queue: user.role === "requester" ? await listTicketQueue() : tickets,
+    queue: tickets,
   });
 }
 

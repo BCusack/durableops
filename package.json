@@ -9,13 +9,16 @@
     "lint": "eslint",
     "db:up": "node ./scripts/local-db.mjs up",
     "db:bootstrap": "node ./scripts/local-db.mjs bootstrap",
+    "db:migrate": "node ./scripts/local-db.mjs migrate",
     "db:reset": "node ./scripts/local-db.mjs up-and-bootstrap",
     "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && next dev",
     "start:demo:offline": "next dev"
   },
   "dependencies": {
     "@workflow/world-postgres": "5.0.0-beta.38",
+    "drizzle-orm": "^0.45.2",
     "next": "16.3.3",
+    "pg": "^8.20.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "workflow": "5.0.0-beta.46",

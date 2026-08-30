@@ -35,6 +35,8 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
    npm run db:bootstrap
    ```
 
+   This also applies the versioned application migrations for the ticket tables. To apply only application migrations, use `npm run db:migrate`.
+
 4. Run the app:
 
    ```bash
@@ -96,23 +98,31 @@ Sensitive, high-impact, or high-priority tickets automatically pause at `awaitin
 
 ## Authentication and tickets
 
-The demo intentionally uses file-backed persistence under `.durableops/` so it can run without adding a second application database:
+The demo uses Postgres for operational data and keeps only local demo authentication state under `.durableops/`. Application schema changes are tracked as versioned Drizzle migrations under `drizzle/` and are applied before the app starts:
 
-- `auth.json` stores users with `scrypt` password hashes, opaque session cookies, and role metadata
-- `tickets.json` stores tickets, lifecycle state, queue ownership, and workflow run IDs
+- `auth.json` stores demo users with `scrypt` password hashes, opaque session cookies, and role metadata
+- Postgres stores tickets, lifecycle state, queue ownership, and workflow run IDs
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me` manage sessions
 - `GET /api/tickets` returns the signed-in user’s tickets for requesters or the full queue for tech
 - `POST /api/tickets` creates a ticket and starts `processSupportTicket`
 - `PATCH /api/tickets/[id]` lets tech update queue state and assignee metadata
 - `POST /api/tickets/approve` resumes the durable approval hook for sensitive or high-impact requests
 
-This persistence is suitable for local demos only. Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
+The demo auth store remains file-backed for simplicity, while operational ticket data is stored in Postgres alongside Workflow SDK state. Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
+
+## Why Workflow SDK instead of Temporal?
+
+Temporal is a powerful, established platform for large-scale workflow orchestration. This demo uses Workflow SDK to show a serverless-friendly operating model: durable workflows can live beside the Next.js application and be deployed through the same application pipeline, without requiring a separately managed, always-running worker fleet.
+
+This can simplify CI/CD for application teams. Workflow code, application code, and deployment versions can stay together in the same repository and release, while durable steps and hooks allow work to continue across requests, restarts, and process lifetimes. Workflow deployments can also be versioned independently from the rest of the application, so updating workflow behavior does not require taking the entire web application offline or coordinating a full application redeploy.
+
+Temporal remains a strong choice when an organization needs its mature workflow platform, multi-language ecosystem, dedicated service operations, or extensive controls at significant scale. The trade-off is that Workflow SDK is a newer and more opinionated option, so teams should evaluate its operational maturity, language coverage, and hosting model against their requirements.
 
 ## Demo features
 
 - Durable onboarding workflow with a human approval gate
 - Durable support ticket lifecycle with requesters and tech roles
-- Tech queue and operator dashboard with role-aware actions
+- Tech queue and operator dashboard with role-aware actions and required status notes
 - Approval hooks for sensitive and high-impact ticket categories
 - Run status + history API at `/api/runs/[runId]` and `/api/runs`
 - File-backed demo history store for timeline snapshots and recent-run views

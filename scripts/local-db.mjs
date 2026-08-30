@@ -149,6 +149,24 @@ async function bootstrapWorkflowDatabase() {
   console.log(`Workflow database bootstrapped with ${workflowUrl}`);
 }
 
+async function migrateApplicationDatabase() {
+  const { drizzle } = await import("drizzle-orm/node-postgres");
+  const { migrate } = await import("drizzle-orm/node-postgres/migrator");
+  const { Pool } = await import("pg");
+  const pool = new Pool({ connectionString: workflowUrl, max: 1 });
+
+  try {
+    await migrate(drizzle(pool), {
+      migrationsFolder: path.join(rootDir, "drizzle"),
+      migrationsTable: "durableops_migrations",
+      migrationsSchema: "durableops",
+    });
+  } finally {
+    await pool.end();
+  }
+  console.log(`Application database migrations applied with ${workflowUrl}`);
+}
+
 async function main() {
   try {
     if (command === "up") {
@@ -159,13 +177,22 @@ async function main() {
     if (command === "bootstrap") {
       await ensureDockerAvailable();
       await waitForPostgres();
+      await migrateApplicationDatabase();
       await bootstrapWorkflowDatabase();
       return;
     }
 
     if (command === "up-and-bootstrap") {
       await startPostgres();
+      await migrateApplicationDatabase();
       await bootstrapWorkflowDatabase();
+      return;
+    }
+
+    if (command === "migrate") {
+      await ensureDockerAvailable();
+      await waitForPostgres();
+      await migrateApplicationDatabase();
       return;
     }
 

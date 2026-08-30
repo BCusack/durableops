@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type UserRole = "requester" | "tech" | "admin";
+type UserRole = "requester" | "tech";
 type TicketPriority = "low" | "medium" | "high";
 type TicketCategory = "standard" | "sensitive" | "high-impact";
 type TicketStatus = "submitted" | "triage" | "awaiting approval" | "in progress" | "resolved" | "closed";
@@ -78,7 +78,7 @@ const defaultForm: CustomerForm = {
   company: "Northstar AI",
   email: "sam@northstar.ai",
   region: "us-east",
-  owner: "ops-admin",
+  owner: "ops-tech",
 };
 
 const defaultTicketForm = {
@@ -92,7 +92,6 @@ const defaultTicketForm = {
 const roleStyles: Record<UserRole, string> = {
   requester: "border-sky-500/40 bg-sky-500/10 text-sky-200",
   tech: "border-violet-500/40 bg-violet-500/10 text-violet-200",
-  admin: "border-rose-500/40 bg-rose-500/10 text-rose-200",
 };
 
 const ticketStatusStyles: Record<TicketStatus, string> = {
@@ -141,6 +140,7 @@ export default function Home() {
   const [ticketForm, setTicketForm] = useState(defaultTicketForm);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [ticketMessage, setTicketMessage] = useState("");
+  const [statusNoteDrafts, setStatusNoteDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [actionTicketId, setActionTicketId] = useState<string | null>(null);
 
@@ -236,17 +236,33 @@ export default function Home() {
   };
 
   const adjustTicketStatus = async (ticketId: string, status: TicketStatus) => {
+    if (!user || user.role !== "tech") {
+      setTicketMessage("Only tech users can update ticket status.");
+      return;
+    }
+
+    const note = (statusNoteDrafts[ticketId] ?? "").trim();
+    if (!note) {
+      setTicketMessage("Add a status note before updating this ticket.");
+      return;
+    }
+
     setActionTicketId(ticketId);
     try {
       const response = await fetch(`/api/tickets/${ticketId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes: `Status updated to ${status} by ${user?.username ?? "operator"}.` }),
+        body: JSON.stringify({ status, notes: note }),
       });
       const result = await response.json();
       if (!response.ok) {
         throw new Error(result.message ?? "Ticket update failed");
       }
+      setStatusNoteDrafts((current) => {
+        const next = { ...current };
+        delete next[ticketId];
+        return next;
+      });
       await loadTickets();
     } catch (error) {
       setTicketMessage(error instanceof Error ? error.message : "Ticket update failed");
@@ -445,7 +461,7 @@ export default function Home() {
               {[
                 "Requester roles",
                 "Tech queue",
-                "Admin controls",
+                "Status notes",
               ].map((item) => (
                 <div key={item} className="rounded-xl border border-slate-700 bg-slate-950/50 p-3 text-sm text-slate-200">
                   {item}
@@ -653,6 +669,26 @@ export default function Home() {
                     </div>
 
                     {ticket.notes ? <p className="mt-3 text-xs text-slate-300">{ticket.notes}</p> : null}
+
+                    {user.role === "tech" ? (
+                      <div className="mt-4 space-y-3">
+                        <label className="block text-sm text-slate-300">
+                          Status note
+                          <textarea
+                            rows={2}
+                            value={statusNoteDrafts[ticket.id] ?? ""}
+                            onChange={(event) =>
+                              setStatusNoteDrafts((current) => ({
+                                ...current,
+                                [ticket.id]: event.target.value,
+                              }))
+                            }
+                            className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none focus:border-teal-400"
+                            placeholder="Add a brief update for this status change."
+                          />
+                        </label>
+                      </div>
+                    ) : null}
 
                     {user.role !== "requester" ? (
                       <div className="mt-4 flex flex-wrap gap-2">

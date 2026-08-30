@@ -8,7 +8,7 @@ const schema = z.object({
   ticketId: z.string().min(1),
   approved: z.boolean(),
   reviewer: z.string().trim().min(1).optional(),
-  reason: z.string().trim().max(500).default(""),
+  reason: z.string().trim().min(1).max(500),
 });
 
 async function currentUser() {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const ticket = await getTicketById(input.ticketId);
     if (!ticket) return Response.json({ ok: false, message: "Ticket not found" }, { status: 404 });
     if (user.role === "requester") {
-      return Response.json({ ok: false, message: "Only tech and admin roles can approve tickets" }, { status: 403 });
+      return Response.json({ ok: false, message: "Only tech users can approve tickets" }, { status: 403 });
     }
     if (!ticket.workflowRunId) {
       return Response.json({ ok: false, message: "This ticket does not have a workflow run attached" }, { status: 400 });

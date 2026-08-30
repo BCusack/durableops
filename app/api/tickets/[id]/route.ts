@@ -3,11 +3,21 @@ import { z } from "zod";
 import { getUserFromSession, sessionCookieName } from "@/lib/auth-store";
 import { getTicketById, listAllTickets, updateTicket } from "@/lib/ticket-store";
 
-const updateSchema = z.object({
-  status: z.enum(["submitted", "triage", "awaiting approval", "in progress", "resolved", "closed"]).optional(),
-  assignee: z.string().trim().max(64).optional(),
-  notes: z.string().trim().max(500).optional(),
-});
+const updateSchema = z
+  .object({
+    status: z.enum(["submitted", "triage", "awaiting approval", "in progress", "resolved", "closed"]).optional(),
+    assignee: z.string().trim().max(64).optional(),
+    notes: z.string().trim().max(500).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.status !== undefined && (!value.notes || value.notes.trim().length === 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["notes"],
+        message: "A note is required whenever a status is updated.",
+      });
+    }
+  });
 
 async function currentUser() {
   return getUserFromSession((await cookies()).get(sessionCookieName())?.value);
@@ -21,11 +31,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const ticket = await getTicketById(id);
   if (!ticket) return Response.json({ ok: false, message: "Ticket not found" }, { status: 404 });
 
-  if (user.role === "requester" && ticket.userId !== user.id) {
-    return Response.json({ ok: false, message: "You are not allowed to modify that ticket" }, { status: 403 });
-  }
-
-  if (user.role === "requester" && ticket.userId === user.id) {
+  if (user.role === "requester") {
     return Response.json({ ok: false, message: "Requesters can only view their own tickets" }, { status: 403 });
   }
 

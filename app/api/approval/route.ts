@@ -1,60 +1,51 @@
+import { cookies } from "next/headers";
 import { z } from "zod";
-import { buildDemoTimeline, upsertDemoRun } from "@/lib/demo-run-store";
-import { customerApprovalHook } from "@/workflows/customer-onboarding";
+import { getUserFromSession, sessionCookieName } from "@/lib/auth-store";
+import { getTicketById, listAllTickets, updateTicket } from "@/lib/ticket-store";
+import { ticketApprovalHook } from "@/workflows/ticket-processing";
 
-const approvalSchema = z.object({
-  runId: z.string().min(1),
+const schema = z.object({
+  ticketId: z.string().min(1),
   approved: z.boolean(),
-  reviewer: z.string().min(1).default("ops-admin"),
-  reason: z.string().optional().default(""),
+  reviewer: z.string().trim().min(1).optional(),
+  reason: z.string().trim().max(500).default(""),
 });
 
+async function currentUser() {
+  return getUserFromSession((await cookies()).get(sessionCookieName())?.value);
+}
+
 export async function POST(request: Request) {
+  const user = await currentUser();
+  if (!user) return Response.json({ ok: false, message: "Authentication required" }, { status: 401 });
+
   try {
-    const body = approvalSchema.parse(await request.json());
+    const input = schema.parse(await request.json());
+    const ticket = await getTicketById(input.ticketId);
+    if (!ticket) return Response.json({ ok: false, message: "Ticket not found" }, { status: 404 });
+    if (user.role === "requester") {
+      return Response.json({ ok: false, message: "Only tech users can approve tickets" }, { status: 403 });
+    }
+    if (!ticket.workflowRunId) {
+      return Response.json({ ok: false, message: "This ticket does not have a workflow run attached" }, { status: 400 });
+    }
 
-    await customerApprovalHook.resume(body.runId, {
-      approved: body.approved,
-      reviewer: body.reviewer,
-      reason: body.reason,
+    await ticketApprovalHook.resume(ticket.workflowRunId, {
+      approved: input.approved,
+      reviewer: input.reviewer ?? user.username,
+      reason: input.reason,
     });
 
-    const status = body.approved ? "approved" : "rejected";
-    const completedAt = new Date().toISOString();
-
-    await upsertDemoRun(body.runId, {
-      status,
-      phase: body.approved ? "approved" : "rejected",
-      decision: body.approved ? "approved" : "rejected",
-      approvalState: body.approved ? "approved" : "rejected",
-      reviewer: body.reviewer,
-      reason: body.reason,
-      completedAt,
-      summary: body.approved
-        ? `Approved by ${body.reviewer}. Customer onboarding is finalized.`
-        : `Rejected by ${body.reviewer}. Customer onboarding has been terminated.`,
-      timeline: buildDemoTimeline({
-        status,
-        approvalState: body.approved ? "approved" : "rejected",
-        reviewer: body.reviewer,
-        reason: body.reason,
-      }),
+    await updateTicket(ticket.id, {
+      approvalDecision: input.approved ? "approved" : "rejected",
+      reviewer: input.reviewer ?? user.username,
+      notes: input.reason || (input.approved ? "Approved by support review." : "Rejected by support review."),
+      status: input.approved ? "in progress" : "closed",
+      updatedAt: new Date().toISOString(),
     });
 
-    return Response.json({
-      ok: true,
-      runId: body.runId,
-      decision: status,
-    });
+    return Response.json({ ok: true, decision: input.approved ? "approved" : "rejected", queue: await listAllTickets() });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Could not resume approval hook";
-
-    return Response.json(
-      {
-        ok: false,
-        message,
-      },
-      { status: 400 }
-    );
+    return Response.json({ ok: false, message: error instanceof Error ? error.message : "Approval failed" }, { status: 400 });
   }
 }

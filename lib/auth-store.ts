@@ -8,7 +8,7 @@ const STORE_PATH = path.join(process.cwd(), ".durableops", "auth.json");
 const COOKIE_NAME = "durableops_session";
 const SESSION_TTL = 1000 * 60 * 60 * 24 * 7;
 
-export const userRoles = ["requester", "tech", "admin"] as const;
+export const userRoles = ["requester", "tech"] as const;
 export type UserRole = (typeof userRoles)[number];
 
 type UserRecord = { id: string; username: string; passwordHash: string; role: UserRole; createdAt: string };
@@ -32,11 +32,6 @@ async function readStore(): Promise<AuthData> {
 
   let changed = false;
   const seededUsers = [
-    {
-      username: process.env.ADMIN_USERNAME,
-      password: process.env.ADMIN_PASSWORD,
-      role: "admin" as const,
-    },
     {
       username: process.env.TECH_USERNAME,
       password: process.env.TECH_PASSWORD,

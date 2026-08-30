@@ -6,7 +6,7 @@ export const onboardingSchema = z.object({
   company: z.string().min(2),
   email: z.email(),
   region: z.string().min(2),
-  owner: z.string().min(2).default("ops-admin"),
+  owner: z.string().min(2).default("ops-tech"),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
