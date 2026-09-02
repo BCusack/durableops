@@ -126,6 +126,25 @@ flowchart TD
     K[Tech updates queue] -. review .-> F
 ```
 
+## Workflow trace dashboard
+
+The Workflow SDK ships a local trace dashboard that visualizes each durable run as a timeline of steps, sleeps, and hooks, connected directly to the Postgres world:
+
+![Workflow SDK trace dashboard showing the processSupportTicket run, with a timeline of readTicket, transitionStatus, and sleep spans](public/workflow-trace-dashboard.png)
+
+To view it:
+
+1. With Postgres running (`npm run db:up` or `npm run start:demo`) and at least one ticket created, start the dashboard:
+
+   ```bash
+   npm run workflow:web
+   ```
+
+2. Open the printed local URL (`http://localhost:3456` by default). It lists recent workflow runs; select `processSupportTicket` to see the run's status, duration, and a **Trace** view of every step (`readTicket`, `transitionStatus`) and `sleep` in the durable ticket lifecycle.
+3. Live runs update in real time, so triggering a ticket from the app (or waiting for a `sleep` to resolve) is visible on the timeline as it happens.
+
+This is a useful way to show the team how the ticket lifecycle actually executes as a durable workflow, including the pause at `awaiting approval`, rather than only the resulting ticket state in the UI.
+
 ## Roles and lifecycle
 
 The demo sign-up form can create either role:
@@ -189,7 +208,7 @@ Temporal remains a strong choice when an organization needs its mature workflow 
 ## Useful commands
 
 ```bash
-npx workflow web
+npm run workflow:web
 npx workflow inspect runs
 npm run db:up
 npm run db:bootstrap

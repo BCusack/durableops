@@ -17,7 +17,8 @@
     "demo:seed": "node ./scripts/local-db.mjs seed",
     "demo:clean": "node ./scripts/clean-demo.mjs",
     "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && node ./scripts/local-db.mjs seed && next dev",
-    "start:demo:offline": "next dev"
+    "start:demo:offline": "next dev",
+    "workflow:web": "npx workflow web"
   },
   "dependencies": {
     "@workflow/world-postgres": "5.0.0-beta.38",
