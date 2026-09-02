@@ -31,6 +31,7 @@ export type Ticket = {
   assignee?: string;
   reviewer?: string;
   notes?: string;
+  advisorAdvice?: string;
   approvalDecision?: "pending" | "approved" | "rejected";
   workflowRunId?: string;
   createdAt: string;
@@ -49,6 +50,7 @@ export const tickets = pgTable("durableops_tickets", {
   assignee: text("assignee"),
   reviewer: text("reviewer"),
   notes: text("notes"),
+  advisorAdvice: text("advisor_advice"),
   approvalDecision: text("approval_decision").$type<Ticket["approvalDecision"]>(),
   workflowRunId: text("workflow_run_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
@@ -83,6 +85,7 @@ function toTicket(row: typeof tickets.$inferSelect): Ticket {
     assignee: row.assignee ?? undefined,
     reviewer: row.reviewer ?? undefined,
     notes: row.notes ?? undefined,
+    advisorAdvice: row.advisorAdvice ?? undefined,
     approvalDecision: row.approvalDecision ?? undefined,
     workflowRunId: row.workflowRunId ?? undefined,
     createdAt: row.createdAt.toISOString(),
@@ -102,6 +105,7 @@ const columns = {
   assignee: tickets.assignee,
   reviewer: tickets.reviewer,
   notes: tickets.notes,
+  advisorAdvice: tickets.advisorAdvice,
   approvalDecision: tickets.approvalDecision,
   workflowRunId: tickets.workflowRunId,
   createdAt: tickets.createdAt,
@@ -123,6 +127,7 @@ export async function createTicket(ticket: Ticket) {
       assignee: ticket.assignee ?? null,
       reviewer: ticket.reviewer ?? null,
       notes: ticket.notes ?? null,
+      advisorAdvice: ticket.advisorAdvice ?? null,
       approvalDecision: ticket.approvalDecision ?? null,
       workflowRunId: ticket.workflowRunId ?? null,
       createdAt: new Date(ticket.createdAt),
@@ -162,6 +167,7 @@ export async function updateTicket(id: string, updates: Partial<Ticket>) {
     ...(updates.assignee !== undefined ? { assignee: updates.assignee } : {}),
     ...(updates.reviewer !== undefined ? { reviewer: updates.reviewer } : {}),
     ...(updates.notes !== undefined ? { notes: updates.notes } : {}),
+    ...(updates.advisorAdvice !== undefined ? { advisorAdvice: updates.advisorAdvice } : {}),
     ...(updates.approvalDecision !== undefined ? { approvalDecision: updates.approvalDecision } : {}),
     ...(updates.workflowRunId !== undefined ? { workflowRunId: updates.workflowRunId } : {}),
     ...(updates.createdAt !== undefined ? { createdAt: new Date(updates.createdAt) } : {}),

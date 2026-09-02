@@ -25,6 +25,7 @@ type Ticket = {
   assignee?: string;
   reviewer?: string;
   notes?: string;
+  advisorAdvice?: string;
   approvalDecision?: "pending" | "approved" | "rejected";
   workflowRunId?: string;
   createdAt: string;
@@ -473,6 +474,12 @@ export default function Home() {
                     </div>
 
                     {ticket.notes ? <p className="mt-3 text-xs text-slate-300">{ticket.notes}</p> : null}
+                    {user.role === "tech" && ticket.advisorAdvice ? (
+                      <div className="mt-3 rounded-lg border border-violet-400/30 bg-violet-500/10 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-violet-200">AI ticket advisor</p>
+                        <p className="mt-1 text-sm text-violet-100">{ticket.advisorAdvice}</p>
+                      </div>
+                    ) : null}
 
                     {user.role === "tech" ? (
                       <div className="mt-4 space-y-3">

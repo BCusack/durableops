@@ -88,6 +88,12 @@ The seed is intentionally non-destructive: it does not replace existing accounts
 
 No environment file is required for the local defaults. To add a separate local tech account or change the session signing secret, create `.env.local` with `TECH_USERNAME`, `TECH_PASSWORD`, and a long random `AUTH_SECRET`. The configured tech account is created when the local auth store is first read.
 
+### Optional AI ticket advisor
+
+The advisor is disabled by default. With no AI environment variables (or with `AI_PROVIDER` unset), tickets are submitted normally and no recommendation is generated.
+
+To enable it, copy `.env.example` to `.env.local`, choose one provider with `AI_PROVIDER=openai` or `AI_PROVIDER=anthropic`, set the corresponding API key, and set `TICKET_ADVISOR_COMPANY_CONTEXT`. The advisor sends each newly submitted ticket and that context to the configured provider, then stores a short recommendation visible only to tech users. If the provider is unavailable, the ticket is still created and the UI reports that advice was unavailable. Keep keys in `.env.local`; do not commit them. Review advice before acting on it, and only submit ticket content that your selected provider is approved to process.
+
 For UI-only development when Docker is unavailable, use:
 
 ```bash

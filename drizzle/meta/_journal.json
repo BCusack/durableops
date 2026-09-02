@@ -8,6 +8,13 @@
       "when": 1777500000000,
       "tag": "0000_create_durableops_tickets",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788264240000,
+      "tag": "0001_add_ticket_advisor",
+      "breakpoints": true
     }
   ]
 }
