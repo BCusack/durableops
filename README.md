@@ -36,7 +36,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Seeded demo accounts
 
-`start:demo`, `demo:seed`, and `db:seed` all run `scripts/demo-seed.mjs`. The seeded accounts are:
+`start:demo` and `demo:seed` both run `scripts/demo-seed.mjs`. The seeded accounts are:
 
 | Role | Username | Password |
 | --- | --- | --- |
@@ -97,7 +97,7 @@ To enable it, copy `.env.example` to `.env.local`, choose one provider with `AI_
 For UI-only development when Docker is unavailable, use:
 
 ```bash
-npm run start:demo:offline
+npm run dev
 ```
 
 The workflow APIs still require the Postgres World to be running.

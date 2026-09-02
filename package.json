@@ -11,13 +11,10 @@
     "db:up": "node ./scripts/local-db.mjs up",
     "db:bootstrap": "node ./scripts/local-db.mjs bootstrap",
     "db:migrate": "node ./scripts/local-db.mjs migrate",
-    "db:seed": "node ./scripts/local-db.mjs seed",
-    "db:clean": "node ./scripts/clean-demo.mjs",
     "db:reset": "node ./scripts/local-db.mjs up-and-bootstrap && node ./scripts/local-db.mjs seed",
     "demo:seed": "node ./scripts/local-db.mjs seed",
     "demo:clean": "node ./scripts/clean-demo.mjs",
     "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && node ./scripts/local-db.mjs seed && next dev",
-    "start:demo:offline": "next dev",
     "workflow:web": "npx workflow web"
   },
   "dependencies": {
