@@ -183,3 +183,7 @@ export async function listTicketQueue() {
     .orderBy(desc(tickets.updatedAt));
   return rows.map(toTicket);
 }
+
+export async function deleteAllTickets() {
+  await db.delete(tickets);
+}

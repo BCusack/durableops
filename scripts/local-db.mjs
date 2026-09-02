@@ -1,43 +1,12 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { loadProjectEnv } from "./lib/load-env.mjs";
 
-async function loadEnvFile(filePath, { override = false } = {}) {
-  let contents;
-  try {
-    contents = await readFile(filePath, "utf8");
-  } catch (error) {
-    if (error?.code === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
-
-  for (const line of contents.split(/\r?\n/)) {
-    const match = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)\s*$/);
-    if (!match) {
-      continue;
-    }
-
-    let value = match[2];
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-
-    if (override || process.env[match[1]] === undefined) {
-      process.env[match[1]] = value;
-    }
-  }
-}
-
-await loadEnvFile(path.join(process.cwd(), ".env"));
-await loadEnvFile(path.join(process.cwd(), ".env.local"), { override: true });
+await loadProjectEnv(process.cwd());
 
 const command = process.argv[2] ?? "up";
 const rootDir = process.cwd();
@@ -104,9 +73,7 @@ async function ensureDockerAvailable() {
   const result = spawnSync("docker", ["--version"], { stdio: "pipe", env: dockerEnv });
 
   if (result.error || result.status !== 0) {
-    console.error("Docker is required to start the local DurableOps database.");
-    console.error("Install Docker Desktop or Docker Engine and ensure `docker` is on your PATH.");
-    process.exit(1);
+    throw new Error("Docker is not installed or not on PATH.");
   }
 
   const daemon = spawnSync("docker", ["info", "--format", "{{.ServerVersion}}"], {
@@ -116,12 +83,7 @@ async function ensureDockerAvailable() {
 
   if (daemon.error || daemon.signal || daemon.status !== 0) {
     const details = daemon.stderr?.toString().trim();
-    console.error("Docker is installed, but the Docker daemon is not available.");
-    console.error("Start Docker Desktop or the Docker Engine, then run `npm run start:demo` again.");
-    if (details) {
-      console.error(`Docker reported: ${details}`);
-    }
-    process.exit(1);
+    throw new Error(`Docker daemon is not available: ${details || "daemon not running"}`);
   }
 }
 
@@ -196,7 +158,23 @@ async function main() {
       return;
     }
 
-    console.error(`Unknown command: ${command}. Expected one of: up, bootstrap, up-and-bootstrap.`);
+    if (command === "seed") {
+      try {
+        await startPostgres();
+        await migrateApplicationDatabase();
+      } catch {
+        // Continue to run seed-demo script so auth users can still be seeded even if Docker is down
+      }
+      run("node", ["./scripts/seed-demo.mjs"]);
+      return;
+    }
+
+    if (command === "clean") {
+      run("node", ["./scripts/clean-demo.mjs"]);
+      return;
+    }
+
+    console.error(`Unknown command: ${command}. Expected one of: up, bootstrap, up-and-bootstrap, migrate, seed, clean.`);
     process.exit(1);
   } catch (error) {
     console.error("Local database setup failed.", error instanceof Error ? error.message : String(error));

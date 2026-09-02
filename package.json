@@ -10,8 +10,12 @@
     "db:up": "node ./scripts/local-db.mjs up",
     "db:bootstrap": "node ./scripts/local-db.mjs bootstrap",
     "db:migrate": "node ./scripts/local-db.mjs migrate",
-    "db:reset": "node ./scripts/local-db.mjs up-and-bootstrap",
-    "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && next dev",
+    "db:seed": "node ./scripts/local-db.mjs seed",
+    "db:clean": "node ./scripts/clean-demo.mjs",
+    "db:reset": "node ./scripts/local-db.mjs up-and-bootstrap && node ./scripts/local-db.mjs seed",
+    "demo:seed": "node ./scripts/local-db.mjs seed",
+    "demo:clean": "node ./scripts/clean-demo.mjs",
+    "start:demo": "node ./scripts/local-db.mjs up-and-bootstrap && node ./scripts/local-db.mjs seed && next dev",
     "start:demo:offline": "next dev"
   },
   "dependencies": {

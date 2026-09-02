@@ -15,21 +15,56 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
 
 ## Quick start
 
+### Prerequisites
+
+- Node.js and npm
+- Docker with Docker Compose, with the Docker daemon running
+
+Install dependencies once:
+
+```bash
+npm install
+```
+
+Run the complete demo setup. It starts Postgres on port `15432`, applies the application and Workflow SDK schema, seeds the demo data, and starts Next.js:
+
+```bash
+npm run start:demo
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+### Seeded demo accounts
+
+`start:demo`, `demo:seed`, and `db:seed` all run `scripts/seed-demo.mjs`. The seeded accounts are:
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Requester | `demo-requester` | `demo-pass-123` |
+| Requester | `demo-requester-2` | `demo-pass-123` |
+| Tech operator | `demo-tech` | `demo-pass-123` |
+
+The seed also adds sample tickets for `demo-requester`. See [DEMO.md](./DEMO.md) for an evaluation walkthrough.
+
+### Reset and seed commands
+
+```bash
+npm run demo:seed   # Starts Postgres if possible, migrates, and adds missing demo users/tickets
+npm run demo:clean  # Deletes Postgres tickets and local auth/session data
+npm run db:reset    # Starts Postgres, migrates, bootstraps Workflow SDK, then seeds
+```
+
+The seed is intentionally non-destructive: it does not replace existing accounts or tickets. For a fresh demo, run `npm run demo:clean` before `npm run db:reset` (or before `npm run demo:seed`).
+
+### Manual setup
+
 1. Start Postgres:
 
    ```bash
    npm run db:up
    ```
 
-2. Set environment variables:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Set `TECH_USERNAME`/`TECH_PASSWORD` in `.env.local` for the local tech account. It is created automatically the first time auth storage is read and is never exposed through public registration. If an existing account uses that username, its role is synchronized to tech.
-
-3. Bootstrap the Workflow SDK tables:
+2. Bootstrap the Workflow SDK tables and apply application migrations:
 
    ```bash
    npm run db:bootstrap
@@ -37,13 +72,21 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
 
    This also applies the versioned application migrations for the ticket tables. To apply only application migrations, use `npm run db:migrate`.
 
+3. Seed the demo users and tickets:
+
+   ```bash
+   npm run demo:seed
+   ```
+
 4. Run the app:
 
    ```bash
    npm run dev
    ```
 
-5. Open http://localhost:3000, create a user, and explore the support ticket and onboarding demos.
+5. Open http://localhost:3000 and sign in with a seeded account.
+
+No environment file is required for the local defaults. To add a separate local tech account or change the session signing secret, create `.env.local` with `TECH_USERNAME`, `TECH_PASSWORD`, and a long random `AUTH_SECRET`. The configured tech account is created when the local auth store is first read.
 
 For UI-only development when Docker is unavailable, use:
 
@@ -55,12 +98,11 @@ The workflow APIs still require the Postgres World to be running.
 
 ## Workflow story
 
-This demo includes two durable workflows:
+This demo uses a single durable workflow to model a realistic support queue:
 
-- The onboarding workflow validates a customer record, continues through a durable step chain, and waits for a human approval decision before finalizing.
-- The support ticket workflow models a production-grade lifecycle: submitted -> triage -> awaiting approval when required -> in progress -> resolved -> closed.
+- The support ticket workflow moves a request through submitted -> triage -> awaiting approval when required -> in progress -> resolved -> closed.
 
-The support ticket workflow is explicitly role-aware. Sensitive and high-impact work pauses for an approval hook before technical work begins, while routine requests continue directly into the tech queue.
+The workflow is explicitly role-aware. Requesters only see their own tickets, while tech users see the full queue and can update any ticket state, assignee, and notes.
 
 ```mermaid
 flowchart TD
@@ -74,16 +116,16 @@ flowchart TD
     D --> H[Resolved]
     H --> I[Closed]
 
-    J[Requester or tech creates ticket] -. starts .-> A
-    K[Tech resumes ticketApprovalHook] -. approval .-> F
+    J[Requester creates ticket] -. starts .-> A
+    K[Tech updates queue] -. review .-> F
 ```
 
 ## Roles and lifecycle
 
-Support accounts can be created with one of two roles:
+The demo sign-up form can create either role:
 
-- `requester`: creates tickets and views only their own issue history
-- `tech`: sees the operator queue, assigns work, and resolves tickets
+- `requester`: creates tickets and sees only their own issue history
+- `tech`: sees the entire ticket queue, updates status, and resolves tickets
 
 Ticket lifecycle states are:
 
@@ -95,6 +137,15 @@ Ticket lifecycle states are:
 - `closed`
 
 Sensitive, high-impact, or high-priority tickets automatically pause at `awaiting approval` and resume through a typed Workflow SDK hook. This is implemented as a durable approval gate rather than a simple UI flag, so the approved/denied decision is persisted and replay-safe.
+
+## Evaluate the demo
+
+1. Sign in as `demo-requester` and inspect the sample tickets, which demonstrate requester-only visibility and several lifecycle states.
+2. Create a new **Sensitive**, **High-impact**, or **High** priority ticket. Refresh after a few seconds until it reaches **awaiting approval**.
+3. Sign out and sign in as `demo-tech`. The operator queue shows every request.
+4. Approve or reject the newly created waiting ticket. Approval resumes its durable workflow; rejection closes it. For ordinary operator actions, add a status note before changing status.
+
+The pre-seeded tickets are display data and do not have a live workflow run attached. Use a newly created qualifying ticket to evaluate the approval hook.
 
 ## Authentication and tickets
 
@@ -120,13 +171,12 @@ Temporal remains a strong choice when an organization needs its mature workflow 
 
 ## Demo features
 
-- Durable onboarding workflow with a human approval gate
-- Durable support ticket lifecycle with requesters and tech roles
-- Tech queue and operator dashboard with role-aware actions and required status notes
+- Role-based sign up for `requester` and `tech` users
+- Durable support ticket lifecycle with per-role access control
+- Tech queue and operator dashboard with required status notes
 - Approval hooks for sensitive and high-impact ticket categories
-- Run status + history API at `/api/runs/[runId]` and `/api/runs`
-- File-backed demo history store for timeline snapshots and recent-run views
-- Stronger approval UX with reviewer notes, status cards, and a run timeline
+- Postgres-backed ticket storage and workflow integration
+- Clear separation between app users and operational ticket processing
 - Postgres bootstrap script that sets Docker config and waits for `pg_isready`
 
 ## Useful commands
