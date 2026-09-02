@@ -13,6 +13,14 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
 - A tech account can be seeded from `TECH_USERNAME` and `TECH_PASSWORD` in `.env.local`
 - Authenticated support ticket creation with requester and tech queues
 
+## Why Workflow SDK instead of Temporal?
+
+Temporal is a powerful, established platform for large-scale workflow orchestration. This demo uses Workflow SDK to show a serverless-friendly operating model: durable workflows can live beside the Next.js application and be deployed through the same application pipeline, without requiring a separately managed, always-running worker fleet.
+
+This can simplify CI/CD for application teams. Workflow code, application code, and deployment versions can stay together in the same repository and release, while durable steps and hooks allow work to continue across requests, restarts, and process lifetimes. Workflow deployments can also be versioned independently from the rest of the application, so updating workflow behavior does not require taking the entire web application offline or coordinating a full application redeploy.
+
+Temporal remains a strong choice when an organization needs its mature workflow platform, multi-language ecosystem, dedicated service operations, or extensive controls at significant scale. The trade-off is that Workflow SDK is a newer and more opinionated option, so teams should evaluate its operational maturity, language coverage, and hosting model against their requirements.
+
 ## Quick start
 
 ### Prerequisites
@@ -186,14 +194,6 @@ The demo stores operational data and authentication state in Postgres. Applicati
 - `POST /api/tickets/approve` resumes the durable approval hook for sensitive or high-impact requests
 
 Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
-
-## Why Workflow SDK instead of Temporal?
-
-Temporal is a powerful, established platform for large-scale workflow orchestration. This demo uses Workflow SDK to show a serverless-friendly operating model: durable workflows can live beside the Next.js application and be deployed through the same application pipeline, without requiring a separately managed, always-running worker fleet.
-
-This can simplify CI/CD for application teams. Workflow code, application code, and deployment versions can stay together in the same repository and release, while durable steps and hooks allow work to continue across requests, restarts, and process lifetimes. Workflow deployments can also be versioned independently from the rest of the application, so updating workflow behavior does not require taking the entire web application offline or coordinating a full application redeploy.
-
-Temporal remains a strong choice when an organization needs its mature workflow platform, multi-language ecosystem, dedicated service operations, or extensive controls at significant scale. The trade-off is that Workflow SDK is a newer and more opinionated option, so teams should evaluate its operational maturity, language coverage, and hosting model against their requirements.
 
 ## Demo features
 
