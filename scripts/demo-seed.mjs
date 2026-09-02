@@ -9,7 +9,7 @@ import { loadProjectEnv } from "./lib/load-env.mjs";
 const rootDir = process.cwd();
 await loadProjectEnv(rootDir);
 
-const { createUser } = await import(path.join(rootDir, "lib", "auth-store.ts"));
+const { createUser, getUserByUsername } = await import(path.join(rootDir, "lib", "auth-store.ts"));
 const { createTicket, listAllTickets } = await import(path.join(rootDir, "lib", "ticket-store.ts"));
 
 const DEMO_PASSWORD = "demo-pass-123";
@@ -67,7 +67,7 @@ async function ensureUser(username, role) {
   } catch (error) {
     if (error instanceof Error && /already registered/i.test(error.message)) {
       console.log(`Demo user "${username}" already exists, skipping.`);
-      return null;
+      return getUserByUsername(username);
     }
     throw error;
   }
@@ -87,11 +87,7 @@ async function main() {
   const existingTickets = await listAllTickets();
   const primaryRequester = createdUsers["demo-requester"];
 
-  if (!primaryRequester) {
-    console.log(
-      "\nSkipping ticket seeding because demo-requester already existed; re-run `npm run demo:clean` first if you want fresh demo tickets."
-    );
-  } else if (existingTickets.length > 0) {
+  if (existingTickets.length > 0) {
     console.log(`\nFound ${existingTickets.length} existing ticket(s); skipping ticket seed to avoid duplicates.`);
   } else {
     let seeded = 0;

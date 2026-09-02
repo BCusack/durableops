@@ -159,13 +159,9 @@ async function main() {
     }
 
     if (command === "seed") {
-      try {
-        await startPostgres();
-        await migrateApplicationDatabase();
-      } catch {
-        // Continue to run seed-demo script so auth users can still be seeded even if Docker is down
-      }
-      run("node", ["./scripts/seed-demo.mjs"]);
+      await startPostgres();
+      await migrateApplicationDatabase();
+      run("node", ["./scripts/demo-seed.mjs"]);
       return;
     }
 

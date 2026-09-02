@@ -1,78 +1,47 @@
-import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
+import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { and, eq, gt } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { Pool } from "pg";
 
 const scrypt = promisify(scryptCallback);
-const STORE_PATH = path.join(process.cwd(), ".durableops", "auth.json");
 const COOKIE_NAME = "durableops_session";
 const SESSION_TTL = 1000 * 60 * 60 * 24 * 7;
 
 export const userRoles = ["requester", "tech"] as const;
 export type UserRole = (typeof userRoles)[number];
+export type User = { id: string; username: string; role: UserRole };
 
-type UserRecord = { id: string; username: string; passwordHash: string; role: UserRole; createdAt: string };
-type SessionRecord = { userId: string; expiresAt: number };
-type AuthData = { users: UserRecord[]; sessions: Record<string, SessionRecord> };
+const users = pgTable("durableops_users", {
+  id: text("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  role: text("role").$type<UserRole>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+});
 
-async function readStore(): Promise<AuthData> {
-  await mkdir(path.dirname(STORE_PATH), { recursive: true });
-  let data: AuthData;
+const sessions = pgTable("durableops_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
 
-  try {
-    data = JSON.parse(await readFile(STORE_PATH, "utf8")) as AuthData;
-  } catch {
-    data = { users: [], sessions: {} };
-  }
+const connectionString =
+  process.env.WORKFLOW_POSTGRES_URL ??
+  process.env.DATABASE_URL ??
+  `postgresql://${process.env.POSTGRES_USER ?? "durableops"}:${process.env.POSTGRES_PASSWORD ?? "durableops"}@localhost:15432/${process.env.POSTGRES_DB ?? "durableops"}`;
 
-  data.users = data.users.map((user) => ({
-    ...user,
-    role: user.role ?? "requester",
-  }));
+const globalForDatabase = globalThis as typeof globalThis & { durableOpsAuthPool?: Pool };
+const pool = globalForDatabase.durableOpsAuthPool ?? new Pool({ connectionString, max: 5 });
+const db = drizzle(pool);
 
-  let changed = false;
-  const seededUsers = [
-    {
-      username: process.env.TECH_USERNAME,
-      password: process.env.TECH_PASSWORD,
-      role: "tech" as const,
-    },
-  ];
-
-  for (const seededUser of seededUsers) {
-    const username = seededUser.username?.trim().toLowerCase();
-    const password = seededUser.password;
-    if (!username || !password) continue;
-
-    const existing = data.users.find((user) => user.username === username);
-    if (existing) {
-      if (existing.role !== seededUser.role) {
-        existing.role = seededUser.role;
-        changed = true;
-      }
-      continue;
-    }
-
-    data.users.push({
-      id: `user_${randomBytes(8).toString("hex")}`,
-      username,
-      passwordHash: await hashPassword(password),
-      role: seededUser.role,
-      createdAt: new Date().toISOString(),
-    });
-    changed = true;
-  }
-
-  if (changed) {
-    await writeStore(data);
-  }
-
-  return data;
+if (process.env.NODE_ENV !== "production") {
+  globalForDatabase.durableOpsAuthPool = pool;
 }
 
-async function writeStore(data: AuthData) {
-  await mkdir(path.dirname(STORE_PATH), { recursive: true });
-  await writeFile(STORE_PATH, JSON.stringify(data, null, 2), "utf8");
+function toUser(user: typeof users.$inferSelect): User {
+  return { id: user.id, username: user.username, role: user.role };
 }
 
 async function hashPassword(password: string, salt = randomBytes(16).toString("hex")) {
@@ -88,9 +57,33 @@ async function verifyPassword(password: string, encoded: string) {
   return target.length === actual.length && timingSafeEqual(target, actual);
 }
 
-function sessionSignature(token: string) {
-  const secret = process.env.AUTH_SECRET ?? "durableops-demo-secret-change-me";
-  return createHmac("sha256", secret).update(token).digest("base64url");
+function tokenHash(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+async function ensureConfiguredTechUser() {
+  const username = process.env.TECH_USERNAME?.trim().toLowerCase();
+  const password = process.env.TECH_PASSWORD;
+  if (!username || !password) return;
+
+  const [existing] = await db.select().from(users).where(eq(users.username, username)).limit(1);
+  if (existing) {
+    if (existing.role !== "tech") {
+      await db.update(users).set({ role: "tech" }).where(eq(users.id, existing.id));
+    }
+    return;
+  }
+
+  await db
+    .insert(users)
+    .values({
+      id: `user_${randomBytes(8).toString("hex")}`,
+      username,
+      passwordHash: await hashPassword(password),
+      role: "tech",
+      createdAt: new Date(),
+    })
+    .onConflictDoNothing({ target: users.username });
 }
 
 export function sessionCookieName() {
@@ -98,53 +91,68 @@ export function sessionCookieName() {
 }
 
 export async function createUser(username: string, password: string, role: UserRole = "requester") {
-  const data = await readStore();
+  await ensureConfiguredTechUser();
   const normalized = username.trim().toLowerCase();
-  if (data.users.some((user) => user.username === normalized)) throw new Error("Username is already registered");
-  const user: UserRecord = {
+  const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.username, normalized)).limit(1);
+  if (existing) throw new Error("Username is already registered");
+
+  const user = {
     id: `user_${randomBytes(8).toString("hex")}`,
     username: normalized,
     passwordHash: await hashPassword(password),
     role,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date(),
   };
-  data.users.push(user);
-  await writeStore(data);
-  return { id: user.id, username: user.username, role: user.role };
+
+  await db.insert(users).values(user);
+  return toUser(user);
+}
+
+export async function getUserByUsername(username: string) {
+  await ensureConfiguredTechUser();
+  const normalized = username.trim().toLowerCase();
+  const [user] = await db.select().from(users).where(eq(users.username, normalized)).limit(1);
+  return user ? toUser(user) : null;
 }
 
 export async function authenticate(username: string, password: string) {
-  const data = await readStore();
-  const user = data.users.find((candidate) => candidate.username === username.trim().toLowerCase());
+  await ensureConfiguredTechUser();
+  const normalized = username.trim().toLowerCase();
+  const [user] = await db.select().from(users).where(eq(users.username, normalized)).limit(1);
   if (!user || !(await verifyPassword(password, user.passwordHash))) return null;
-  return { id: user.id, username: user.username, role: user.role };
+  return toUser(user);
 }
 
 export async function createSession(userId: string) {
-  const data = await readStore();
   const token = randomBytes(32).toString("base64url");
-  data.sessions[token] = { userId, expiresAt: Date.now() + SESSION_TTL };
-  await writeStore(data);
-  return `${token}.${sessionSignature(token)}`;
+  await db.insert(sessions).values({
+    tokenHash: tokenHash(token),
+    userId,
+    expiresAt: new Date(Date.now() + SESSION_TTL),
+  });
+  return token;
 }
 
 export async function getUserFromSession(value?: string | null) {
   if (!value) return null;
-  const [token, signature] = value.split(".");
-  if (!token || !signature || sessionSignature(token) !== signature) return null;
-  const data = await readStore();
-  const session = data.sessions[token];
-  if (!session || session.expiresAt < Date.now()) return null;
-  const user = data.users.find((candidate) => candidate.id === session.userId);
-  return user ? { id: user.id, username: user.username, role: user.role } : null;
+  await ensureConfiguredTechUser();
+
+  const [session] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+    })
+    .from(sessions)
+    .innerJoin(users, eq(sessions.userId, users.id))
+    .where(and(eq(sessions.tokenHash, tokenHash(value)), gt(sessions.expiresAt, new Date())))
+    .limit(1);
+  return session ?? null;
 }
 
 export async function deleteSession(value?: string | null) {
   if (!value) return;
-  const [token] = value.split(".");
-  const data = await readStore();
-  delete data.sessions[token];
-  await writeStore(data);
+  await db.delete(sessions).where(eq(sessions.tokenHash, tokenHash(value)));
 }
 
 export { COOKIE_NAME, SESSION_TTL };
