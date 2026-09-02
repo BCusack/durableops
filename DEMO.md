@@ -27,7 +27,7 @@ The seeded tickets are static sample records, so their approval buttons cannot r
 
 ```bash
 npm run demo:seed  # Add missing demo users and tickets without overwriting existing data
-npm run demo:clean # Remove all tickets and local auth/session data
+npm run demo:clean # Remove all Postgres tickets, users, and sessions
 npm run db:reset   # Start Postgres, migrate, bootstrap Workflow SDK, then seed
 ```
 

@@ -9,7 +9,7 @@ DurableOps is a production-style demo application that uses Next.js 16 and Workf
 - Self-hosted Postgres world (`@workflow/world-postgres`)
 - Docker Compose for local Postgres
 - Human approval hook for demonstration of pause/resume
-- Demo username/password authentication with scrypt password hashes and signed, HttpOnly session cookies
+- Demo username/password authentication with scrypt password hashes and opaque, HttpOnly session cookies
 - A tech account can be seeded from `TECH_USERNAME` and `TECH_PASSWORD` in `.env.local`
 - Authenticated support ticket creation with requester and tech queues
 
@@ -36,7 +36,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ### Seeded demo accounts
 
-`start:demo`, `demo:seed`, and `db:seed` all run `scripts/seed-demo.mjs`. The seeded accounts are:
+`start:demo`, `demo:seed`, and `db:seed` all run `scripts/demo-seed.mjs`. The seeded accounts are:
 
 | Role | Username | Password |
 | --- | --- | --- |
@@ -50,7 +50,7 @@ The seed also adds sample tickets for `demo-requester`. See [DEMO.md](./DEMO.md)
 
 ```bash
 npm run demo:seed   # Starts Postgres if possible, migrates, and adds missing demo users/tickets
-npm run demo:clean  # Deletes Postgres tickets and local auth/session data
+npm run demo:clean  # Deletes Postgres tickets, users, and sessions
 npm run db:reset    # Starts Postgres, migrates, bootstraps Workflow SDK, then seeds
 ```
 
@@ -86,7 +86,7 @@ The seed is intentionally non-destructive: it does not replace existing accounts
 
 5. Open http://localhost:3000 and sign in with a seeded account.
 
-No environment file is required for the local defaults. To add a separate local tech account or change the session signing secret, create `.env.local` with `TECH_USERNAME`, `TECH_PASSWORD`, and a long random `AUTH_SECRET`. The configured tech account is created when the local auth store is first read.
+No environment file is required for the local defaults. To add a separate local tech account, create `.env.local` with `TECH_USERNAME` and `TECH_PASSWORD`. The configured tech account is created in Postgres when authentication is first used.
 
 ### Optional AI ticket advisor
 
@@ -155,17 +155,18 @@ The pre-seeded tickets are display data and do not have a live workflow run atta
 
 ## Authentication and tickets
 
-The demo uses Postgres for operational data and keeps only local demo authentication state under `.durableops/`. Application schema changes are tracked as versioned Drizzle migrations under `drizzle/` and are applied before the app starts:
+The demo stores operational data and authentication state in Postgres. Application schema changes are tracked as versioned Drizzle migrations under `drizzle/` and are applied before the app starts:
 
-- `auth.json` stores demo users with `scrypt` password hashes, opaque session cookies, and role metadata
-- Postgres stores tickets, lifecycle state, queue ownership, and workflow run IDs
+- `durableops_users` stores demo users with `scrypt` password hashes and role metadata
+- `durableops_sessions` stores hashes of opaque session tokens and their expiry time
+- `durableops_tickets` stores tickets, lifecycle state, queue ownership, workflow run IDs, and optional advisor advice
 - `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`, and `GET /api/auth/me` manage sessions
 - `GET /api/tickets` returns the signed-in user’s tickets for requesters or the full queue for tech
 - `POST /api/tickets` creates a ticket and starts `processSupportTicket`
 - `PATCH /api/tickets/[id]` lets tech update queue state and assignee metadata
 - `POST /api/tickets/approve` resumes the durable approval hook for sensitive or high-impact requests
 
-The demo auth store remains file-backed for simplicity, while operational ticket data is stored in Postgres alongside Workflow SDK state. Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
+Use a managed database, a secret manager, CSRF protection, rate limiting, and a production identity provider before deploying.
 
 ## Why Workflow SDK instead of Temporal?
 

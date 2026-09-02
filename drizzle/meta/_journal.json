@@ -15,6 +15,13 @@
       "when": 1788264240000,
       "tag": "0001_add_ticket_advisor",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788265300000,
+      "tag": "0002_move_auth_to_database",
+      "breakpoints": true
     }
   ]
 }
